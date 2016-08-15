@@ -4,8 +4,17 @@ import os
 import subprocess
 import shutil
 
-from update_modules import git_updater, svn_updater, select_repo_updater
-from conf import all_repos, base_repo_path, output_addon_path, get_repo_type
+from update_modules import git_updater, svn_updater, select_repo_updater, RepoType
+from conf import settings
+
+settings_file = "settings.json"
+
+def get_repo_type(repo_url):
+	if "git" in repo_url:
+		return RepoType.git
+	if "svn" in repo_url:
+		return RepoType.svn
+	return None
 
 def create_copy_task(__addon_repo_path, __output_path, __append_output_path):
 	copy_files = []
@@ -26,7 +35,7 @@ def create_copy_task(__addon_repo_path, __output_path, __append_output_path):
 			copy_files.append((input_file, output_file))
 	return (list(make_dirs), copy_files)
 
-def handle_repo_worker(repo_vals):
+def handle_repo_worker(repo_vals, base_repo_path, output_addon_path):
 	repo_name        = repo_vals[0]
 	repo_url         = repo_vals[1]
 
@@ -65,12 +74,12 @@ def handle_repo_worker(repo_vals):
 
 	return create_copy_task(repo_path, output_addon_path, append_output_path)
 
-def update_addons_and_get_copytasks():
+def update_addons_and_get_copytasks(all_repos, base_repo_path, output_addon_path):
 	update_process_pool = multiprocessing.Pool(processes=16)
 
 	jobs = []
 	for repo in all_repos:
-		res = update_process_pool.apply_async(handle_repo_worker, (repo,))
+		res = update_process_pool.apply_async(handle_repo_worker, (repo,base_repo_path,output_addon_path,))
 		jobs.append	(res)
 
 	update_process_pool.close()
@@ -84,7 +93,7 @@ def update_addons_and_get_copytasks():
 
 	return copy_tasks
 
-def init_paths():
+def init_paths(base_repo_path, output_addon_path):
 	if not os.path.isdir(base_repo_path):
 		os.makedirs(base_repo_path)
 	if not os.path.isdir(output_addon_path):
@@ -99,12 +108,12 @@ def clean_output_path(__addon_path):
 			shutil.rmtree(os.path.join(__addon_path, d))
 
 def main():
-	jobs = []
+	s = settings(settings_file)
 
-	init_paths()
-	clean_output_path(output_addon_path)
+	init_paths(s.base_repo_path, s.output_addon_path)
+	clean_output_path(s.output_addon_path)
 
-	copy_tasks = update_addons_and_get_copytasks()
+	copy_tasks = update_addons_and_get_copytasks(s.all_repos, s.base_repo_path, s.output_addon_path)
 
 	dir_process_pool = multiprocessing.Pool(processes=16)
 	file_process_pool = multiprocessing.Pool(processes=16)
