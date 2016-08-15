@@ -1,0 +1,1 @@
+WoW Addon Updater (without the crap!)
